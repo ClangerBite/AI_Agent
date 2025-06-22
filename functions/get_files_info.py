@@ -15,7 +15,11 @@ def get_files_info(working_directory, directory=None):
     if not abs_target_dir.startswith(abs_working_dir):
         return f'Error: Cannot list "{directory}" as it is outside the permitted working directory'
 
-    return "\n".join(list(map(lambda i: build_line(abs_target_dir,i), os.listdir(abs_target_dir))))
+    try:
+        return "\n".join(list(map(lambda i: build_line(abs_target_dir,i), os.listdir(abs_target_dir))))
+    except Exception as e:
+        return f"Error listing files: {e}"
+    
     
 def build_line(directory, item):
     filepath = os.path.join(directory, item)    

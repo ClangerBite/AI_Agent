@@ -2,7 +2,7 @@ import os
 import subprocess
 
 
-def run_python_file(working_directory, file_path):
+def run_python_file(working_directory, file_path, args=None):
         
     abs_working_dir = os.path.abspath(working_directory)
     abs_filepath = os.path.abspath(os.path.join(working_directory, file_path))
@@ -13,19 +13,29 @@ def run_python_file(working_directory, file_path):
     if not os.path.exists(abs_filepath):        
         return f'Error: File "{file_path}" not found.'
     
-    if file_path[-3:] != ".py":
+    if not file_path.endswith(".py"):
         return f'Error: "{file_path}" is not a Python file.'
     
     try:
-        result = subprocess.run(abs_filepath, timeout=30, capture_output=True)
+        commands = ["python3", abs_filepath]
+        if args:
+            commands.extend(args)
+            
+        result = subprocess.run(commands,
+                                capture_output=True,
+                                text=True, 
+                                timeout=30, 
+                                cwd=abs_working_dir)
     
+        output =[]
+        if result.stdout:
+            output.append(f"STDOUT:\n{result.stdout}")
+        if result.stderr:
+            output.append(f"STDERR:\n{result.stderr}")
         if result.returncode != 0:
-            return f'Process exited with code {result.returncode}'
-        
-        if len(result.stdout) == 0:
-            return 'No output produced.'    
+            output.append(f"Process exited with code {result.returncode}")
     
-        return f"STDOUT: {result.stdout} STDERR: {result.stderr}"
+        return "\n".join(output) if output else "No output produced."
         
     
     except Exception as e:

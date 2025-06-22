@@ -1,4 +1,5 @@
 import os
+from config import MAX_CHARS
 
 
 def get_file_content(working_directory, file_path):    
@@ -10,8 +11,6 @@ def get_file_content(working_directory, file_path):
         
     if not os.path.isfile(abs_filepath):
         return f'Error: File not found or is not a regular file: "{file_path}"'
-    
-    MAX_CHARS = 10_000
 
     try:
         with open(abs_filepath, "r") as f:

@@ -1,9 +1,12 @@
+from email import contentmanager
 import os
 import sys
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from config import system_prompt
+from system_prompt import system_prompt
+from available_functions import available_functions
+from call_function import call_function
 
 
 def get_args():
@@ -29,45 +32,40 @@ def get_client():
     return client
 
 
-def schema():
-    schema_get_files_info = types.FunctionDeclaration(
-        name="get_files_info",
-        description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
-        parameters=types.Schema(
-            type=types.Type.OBJECT,
-            properties={
-                "directory": types.Schema(
-                    type=types.Type.STRING,
-                    description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
-                ),
-            },
-        ),
-    )
-    
-    available_functions = types.Tool(
-        function_declarations=[
-            schema_get_files_info,
-        ]
-    )
-    return available_functions
-
-def get_response(client, messages):
+def generate_content(client, messages, user_prompt, verbose):
     response = client.models.generate_content(
         model='gemini-2.0-flash-001', 
         contents=messages,
-        config=types.GenerateContentConfig(tools =[schema()], system_instruction=system_prompt))
-    text = response.text
-    prompt_tokens = response.usage_metadata.prompt_token_count
-    response_tokens = response.usage_metadata.candidates_token_count    
-    function_call_part = response.function_calls[0]
-    return text, prompt_tokens, response_tokens, function_call_part
-
-
-def print_verbose_content(user_prompt, prompt_tokens,response_tokens):
-    print(f"User prompt: {user_prompt}")
-    print(f"Prompt tokens: {prompt_tokens}")
-    print(f"Response tokens: {response_tokens}")
+        config=types.GenerateContentConfig(tools =[available_functions()], system_instruction=system_prompt))    
+    
+    if not response.function_calls:
+        print(response.text)    
         
+    if verbose:
+        print(f"User prompt: {user_prompt}")
+        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+    
+    function_responses = []
+    if response.function_calls != None:
+        for function_call_part in response.function_calls:
+            function_call_result = call_function(function_call_part, verbose)
+            
+            if (
+                not function_call_result.parts
+                or not function_call_result.parts[0].function_response
+            ):
+                raise Exception("empty function call result")
+            
+            if verbose:
+                print(f"-> {function_call_result.parts[0].function_response.response}")
+            
+            function_responses.append(function_call_result.parts[0])
+        
+    
+    if not function_responses:
+        raise Exception("no function responses generated, exiting.")
+    
 
 def main():
     load_dotenv()
@@ -76,16 +74,8 @@ def main():
 
     messages = [types.Content(role="user", parts=[types.Part(text=user_prompt)]),]
     
-    response, prompt_tokens, response_tokens, function_call_part = get_response(client, messages)
-    
-    if function_call_part:
-        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
-    else:
-        print(response)    
-        
-    if verbose:
-        print_verbose_content(user_prompt, prompt_tokens, response_tokens)
-    
+    generate_content(client, messages, user_prompt, verbose)
+
 
 if __name__ == "__main__":
     main()
